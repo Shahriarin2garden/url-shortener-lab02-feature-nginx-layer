@@ -1,6 +1,110 @@
-# URL Shortener Lab02
+# URL Shortener Lab02 - Feature Nginx Layer
 
-A containerized URL shortening service built with Node.js, Express, MongoDB, and Nginx as a reverse proxy.
+A containerized URL shortening service built with Node.js, Express, MongoDB, and Nginx as a reverse proxy layer.
+
+## 📋 Presentation Summary
+
+### Project Overview
+- **Name**: URL Shortener with Nginx Layer
+- **Type**: Containerized Web Service
+- **Architecture**: 3-Tier (Nginx + Node.js + MongoDB)
+- **Deployment**: Docker Compose
+
+### Key Technologies
+- **Frontend**: REST API endpoints
+- **Backend**: Node.js + Express.js
+- **Database**: MongoDB with Mongoose ODM
+- **Proxy**: Nginx reverse proxy
+- **Containerization**: Docker & Docker Compose
+- **Logging**: Winston structured logging
+
+### Core Features
+✅ **URL Shortening**: Convert long URLs to 7-character short codes  
+✅ **URL Redirection**: 301 redirects with visit tracking  
+✅ **Health Monitoring**: Built-in health checks and uptime tracking  
+✅ **Error Handling**: Comprehensive validation and error responses  
+✅ **Containerized**: Full Docker environment with networking  
+✅ **Scalable**: Nginx reverse proxy for load distribution  
+
+### Technical Specifications
+| Component | Technology | Port | Purpose |
+|-----------|------------|------|---------|
+| Nginx | Nginx Alpine | 80 | Reverse Proxy & Load Balancer |
+| API Server | Node.js 18 | 3000 (internal) | REST API & Business Logic |
+| Database | MongoDB Latest | 27017 | Data Persistence |
+
+### API Endpoints
+| Method | Endpoint | Purpose | Response |
+|--------|----------|---------|----------|
+| `POST` | `/urls` | Create short URL | `{"shortUrl": "http://localhost/abc123"}` |
+| `GET` | `/:id` | Redirect to original | `301 Redirect` |
+| `GET` | `/health` | Service status | `{"status": "healthy", "uptime": 120}` |
+
+### Database Schema
+```javascript
+{
+  shortUrlId: String,    // 7-char unique ID (e.g., "aBc123D")
+  longUrl: String,       // Original URL (validated)
+  createdAt: Date,       // Auto timestamp
+  visits: Number         // Visit counter (auto-increment)
+}
+```
+
+### Deployment Architecture
+```
+Internet (Port 80) 
+    ↓
+Nginx Container (Reverse Proxy)
+    ↓
+Node.js Container (Port 3000)
+    ↓
+MongoDB Container (Port 27017)
+```
+
+### Quick Demo Commands
+```bash
+# 1. Start the application
+docker-compose up --build -d
+
+# 2. Create a short URL
+curl -X POST http://localhost/urls 
+  -H "Content-Type: application/json" 
+  -d '{"longUrl": "https://www.google.com"}'
+
+# 3. Test redirect
+curl -L http://localhost/aBc123D
+
+# 4. Check health
+curl http://localhost/health
+```
+
+### Performance & Monitoring
+- **Health Checks**: 30-second intervals with 3 retries
+- **Logging**: JSON structured logs with timestamps
+- **Error Tracking**: 400/404/500 HTTP status codes
+- **Visit Analytics**: Automatic visit counter per URL
+- **Uptime Monitoring**: Built-in uptime tracking
+
+### Development Workflow
+1. **Local Development**: `npm run dev` with nodemon
+2. **Containerized Testing**: `docker-compose up --build`
+3. **Monitoring**: `docker-compose logs -f`
+4. **Health Checks**: Automated container health monitoring
+
+### Project Benefits
+🚀 **Scalability**: Nginx proxy enables horizontal scaling  
+🔒 **Reliability**: Health checks and error handling  
+📦 **Portability**: Complete Docker environment  
+🔧 **Maintainability**: Modular MVC architecture  
+📊 **Analytics**: Built-in visit tracking  
+⚡ **Performance**: Lightweight Alpine containers  
+
+### Use Cases
+- **Link Shortening Services**: Social media, marketing campaigns
+- **Analytics Tracking**: Monitor link engagement
+- **Branded URLs**: Custom domain short links
+- **QR Code Generation**: Short URLs for QR codes
+- **Email Marketing**: Track campaign performance
 
 ## Architecture
 
