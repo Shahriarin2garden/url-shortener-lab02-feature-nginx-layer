@@ -22,6 +22,7 @@ A containerized URL shortening service built with Node.js, Express, MongoDB, and
 ```
 ┌─────────────────────────────────────────────────────────────────┐
 │                    Docker Compose Environment                  │
+│                   url-shortener-network (bridge)               │
 ├─────────────────────────────────────────────────────────────────┤
 │                                                                 │
 │  ┌─────────────────┐  ┌─────────────────┐  ┌─────────────────┐ │
@@ -32,6 +33,9 @@ A containerized URL shortening service built with Node.js, Express, MongoDB, and
 │  │ │   Proxy     │◄┼──┼►│   Server    │◄┼──┼►│  Database   │ │ │
 │  │ │   Port 80   │ │  │ │  Port 3000  │ │  │ │ Port 27017  │ │ │
 │  │ └─────────────┘ │  │ └─────────────┘ │  │ └─────────────┘ │ │
+│  │                 │  │                 │  │                 │ │
+│  │ upstream:       │  │ Health Check:   │  │ Database:       │ │
+│  │ server app:3000 │  │ /health         │  │ url_shortener   │ │
 │  └─────────────────┘  └─────────────────┘  └─────────────────┘ │
 │         │                      │                      │        │
 │         ▼                      ▼                      ▼        │
@@ -41,39 +45,160 @@ A containerized URL shortening service built with Node.js, Express, MongoDB, and
 │  └─────────────────┘  └─────────────────┘  └─────────────────┘ │
 └─────────────────────────────────────────────────────────────────┘
 
-External Access: localhost:80 ──► Nginx ──► App ──► MongoDB
-Internal Network: url-shortener-network (Bridge)
+External Access: localhost:80 ──► nginx ──► app:3000 ──► mongodb:27017
+```
+
+### Application Layer Architecture
+```
+┌─────────────────────────────────────────────────────────────────┐
+│                      Node.js Application                       │
+├─────────────────────────────────────────────────────────────────┤
+│                                                                 │
+│  ┌─────────────────────────────────────────────────────────┐    │
+│  │                Application Bootstrap                    │    │
+│  │  ┌─────────────────────────────────────────────────┐   │    │
+│  │  │ • Web server initialization                     │   │    │
+│  │  │ • Structured logging setup (JSON format)       │   │    │
+│  │  │ • Database connection management                │   │    │
+│  │  │ • Health monitoring endpoint                    │   │    │
+│  │  │ • Global error handling                         │   │    │
+│  │  └─────────────────────────────────────────────────┘   │    │
+│  └─────────────────────────────────────────────────────────┘    │
+│                              │                                  │
+│                              ▼                                  │
+│  ┌─────────────────────────────────────────────────────────┐    │
+│  │                 Request Router                          │    │
+│  │  ┌─────────────────────────────────────────────────┐   │    │
+│  │  │ • POST /urls ──► URL Creation Handler           │   │    │
+│  │  │ • GET /:shortUrlId ──► Redirection Handler      │   │    │
+│  │  └─────────────────────────────────────────────────┘   │    │
+│  └─────────────────────────────────────────────────────────┘    │
+│                              │                                  │
+│                              ▼                                  │
+│  ┌─────────────────────────────────────────────────────────┐    │
+│  │              Request Handlers                           │    │
+│  │  ┌─────────────────────────────────────────────────┐   │    │
+│  │  │ • HTTP request/response processing              │   │    │
+│  │  │ • Input validation (URL format checking)       │   │    │
+│  │  │ • Error response formatting                     │   │    │
+│  │  │ • Status code management (400, 404, 500)       │   │    │
+│  │  └─────────────────────────────────────────────────┘   │    │
+│  └─────────────────────────────────────────────────────────┘    │
+│                              │                                  │
+│                              ▼                                  │
+│  ┌─────────────────────────────────────────────────────────┐    │
+│  │               Business Logic Layer                      │    │
+│  │  ┌─────────────────────────────────────────────────┐   │    │
+│  │  │ • Short URL ID generation (7 chars A-Z,a-z,0-9)│   │    │
+│  │  │ • URL shortening operations                     │   │    │
+│  │  │ • URL resolution & analytics tracking          │   │    │
+│  │  │ • Visit counter management                      │   │    │
+│  │  └─────────────────────────────────────────────────┘   │    │
+│  └─────────────────────────────────────────────────────────┘    │
+│                              │                                  │
+│                              ▼                                  │
+│  ┌─────────────────────────────────────────────────────────┐    │
+│  │               Data Access Layer                         │    │
+│  │  ┌─────────────────────────────────────────────────┐   │    │
+│  │  │ • Document schema definition                    │   │    │
+│  │  │ • Data validation rules                         │   │    │
+│  │  │ • Database query operations                     │   │    │
+│  │  │ • Index management (unique shortUrlId)          │   │    │
+│  │  └─────────────────────────────────────────────────┘   │    │
+│  └─────────────────────────────────────────────────────────┘    │
+└─────────────────────────────────────────────────────────────────┘
 ```
 
 ### Request Flow Diagram
 ```
 ┌─────────────────────────────────────────────────────────────────┐
-│                       Request Processing Flow                  │
+│                    1. URL Creation Flow                        │
 └─────────────────────────────────────────────────────────────────┘
 
-1. URL Creation Flow:
-   Client ──POST /urls──► Nginx ──► Express.js ──► MongoDB
-   │                       │          │            │
-   │                       │          ▼            ▼
-   │                       │     Generate ID   Save Document
-   │                       │          │            │
-   │                       │          ▼            │
-   │                       │    Create Short URL   │
-   │                       │          │            │
-   ◄─────────────────────────────────┘            │
-   {"shortUrl": "http://localhost/aBc123D"}       │
+Client ──POST /urls──► Nginx ──proxy_pass──► Express.js App
+  │                     │                         │
+  │ {                   │ upstream backend {      │ ┌─────────────┐
+  │   "longUrl":        │   server app:3000;     │ │ Router      │
+  │   "https://..."     │ }                       ▼ │ POST /urls  │
+  │ }                   │                       ┌───┴─────────────┤
+  │                     │                       │ Request Handler │
+  │                     │                       │ • Input Validation│
+  │                     │                       └───┬─────────────┤
+  │                     │                           │ • URL Format│
+  │                     │                           │   Check     │
+  │                     │                           │ • Delegate  │
+  │                     │                           │   to Logic  │
+  │                     │                           └─────────────┘
+  │                     │                                 │
+  │                     │                                 ▼
+  │                     │                         ┌─────────────────┐
+  │                     │                         │ Business Logic  │
+  │                     │                         │ • ID Generation │
+  │                     │                         ├─────────────────┤
+  │                     │                         │ • Generate 7    │
+  │                     │                         │   character ID  │
+  │                     │                         │ • Create URL    │
+  │                     │                         │   mapping       │
+  │                     │                         │ • Persist data  │
+  │                     │                         └─────────────────┘
+  │                     │                                 │
+  │                     │                                 ▼
+  │                     │                         ┌─────────────────┐
+  │                     │                         │ Data Layer      │
+  │                     │                         │ • Document      │
+  │                     │                         │   Creation      │
+  │                     │                         │ • Schema        │
+  │                     │                         │   Validation    │
+  │                     │                         │ • Database      │
+  │                     │                         │   Persistence   │
+  │                     │                         └─────────────────┘
+  │                     │                                 │
+  ◄─────────────────────◄─────────────────────────────────┘
+  {"shortUrl": "http://localhost/aBc123D"}
 
-2. URL Redirection Flow:
-   Client ──GET /aBc123D──► Nginx ──► Express.js ──► MongoDB
-   │                         │          │            │
-   │                         │          ▼            ▼
-   │                         │    Find Document  Increment
-   │                         │          │        Visits
-   │                         │          ▼            │
-   │                         │    Get Original URL   │
-   │                         │          │            │
-   ◄─────────────────────────────────┘            │
-   301 Redirect to: https://original-url.com       │
+┌─────────────────────────────────────────────────────────────────┐
+│                   2. URL Redirection Flow                      │
+└─────────────────────────────────────────────────────────────────┘
+
+Client ──GET /aBc123D──► Nginx ──proxy_pass──► Express.js App
+  │                        │                         │
+  │                        │ upstream backend {      │ ┌─────────────┐
+  │                        │   server app:3000;     │ │ Router      │
+  │                        │ }                       ▼ │ GET /:id    │
+  │                        │                       ┌───┴─────────────┤
+  │                        │                       │ Request Handler │
+  │                        │                       │ • Extract ID    │
+  │                        │                       └───┬─────────────┤
+  │                        │                           │ • Parameter │
+  │                        │                           │   Parsing   │
+  │                        │                           │ • Delegate  │
+  │                        │                           │   to Logic  │
+  │                        │                           └─────────────┘
+  │                        │                                 │
+  │                        │                                 ▼
+  │                        │                         ┌─────────────────┐
+  │                        │                         │ Business Logic  │
+  │                        │                         │ • URL Resolution│
+  │                        │                         ├─────────────────┤
+  │                        │                         │ • Find URL by   │
+  │                        │                         │   identifier    │
+  │                        │                         │ • Update visit  │
+  │                        │                         │   analytics     │
+  │                        │                         │ • Return target │
+  │                        │                         └─────────────────┘
+  │                        │                                 │
+  │                        │                                 ▼
+  │                        │                         ┌─────────────────┐
+  │                        │                         │ Data Layer      │
+  │                        │                         │ • Query by ID   │
+  │                        │                         │ • Increment     │
+  │                        │                         │   counter       │
+  │                        │                         │ • Update record │
+  │                        │                         └─────────────────┘
+  │                        │                                 │
+  ◄────────────────────────◄─────────────────────────────────┘
+  301 Redirect
+  Location: https://original-url.com
 ```
 
 ### Component Specifications
@@ -84,6 +209,11 @@ Internal Network: url-shortener-network (Bridge)
 │ Nginx       │ nginx:alpine   │ 80       │ Reverse Proxy      │
 │ API Server  │ node:18-alpine │ 3000     │ REST API           │
 │ Database    │ mongo:latest   │ 27017    │ Data Persistence   │
+├─────────────┼────────────────┼──────────┼────────────────────┤
+│ Router      │ Express Router │ -        │ Request Routing    │
+│ Handler     │ Request Handler│ -        │ HTTP Processing    │
+│ Logic       │ Business Logic │ -        │ Core Operations    │
+│ Data Layer  │ Data Access    │ -        │ Database Interface │
 └─────────────┴────────────────┴──────────┴────────────────────┘
 ```
 
