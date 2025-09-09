@@ -5,216 +5,144 @@ A containerized URL shortening service built with Node.js, Express, MongoDB, and
 ## Architecture
 
 ### System Overview
-```
-┌─────────────────┐    ┌──────────────┐    ┌─────────────────┐
-│   Client        │───▶│   Nginx      │───▶│   Node.js App   │
-│   (Browser)     │    │   :80        │    │   :3000         │
-└─────────────────┘    └──────────────┘    └─────────────────┘
-                                                     │
-                                                     ▼
-                                           ┌─────────────────┐
-                                           │   MongoDB       │
-                                           │   :27017        │
-                                           └─────────────────┘
+
+```mermaid
+graph TD
+    Client[🌐 Client Browser] -->|HTTP :80| Nginx[🔄 Nginx Proxy]
+    Nginx -->|Forward| App[⚡ Node.js App :3000]
+    App -->|Query| MongoDB[🗄️ MongoDB :27017]
+    
+    subgraph Docker[🐳 Docker Environment]
+        Nginx
+        App
+        MongoDB
+    end
+    
+    style Client fill:#e3f2fd,stroke:#1976d2,stroke-width:2px
+    style Nginx fill:#f3e5f5,stroke:#7b1fa2,stroke-width:2px
+    style App fill:#e8f5e8,stroke:#388e3c,stroke-width:2px
+    style MongoDB fill:#fff3e0,stroke:#f57c00,stroke-width:2px
 ```
 
-### Container Architecture
-```
-┌─────────────────────────────────────────────────────────────────┐
-│                    Docker Compose Environment                  │
-│                   url-shortener-network (bridge)               │
-├─────────────────────────────────────────────────────────────────┤
-│                                                                 │
-│  ┌─────────────────┐  ┌─────────────────┐  ┌─────────────────┐ │
-│  │  nginx:alpine   │  │ node:18-alpine  │  │  mongo:latest   │ │
-│  │                 │  │                 │  │                 │ │
-│  │ ┌─────────────┐ │  │ ┌─────────────┐ │  │ ┌─────────────┐ │ │
-│  │ │   Reverse   │ │  │ │  Express.js │ │  │ │  MongoDB    │ │ │
-│  │ │   Proxy     │◄┼──┼►│   Server    │◄┼──┼►│  Database   │ │ │
-│  │ │   Port 80   │ │  │ │  Port 3000  │ │  │ │ Port 27017  │ │ │
-│  │ └─────────────┘ │  │ └─────────────┘ │  │ └─────────────┘ │ │
-│  │                 │  │                 │  │                 │ │
-│  │ upstream:       │  │ Health Check:   │  │ Database:       │ │
-│  │ server app:3000 │  │ /health         │  │ url_shortener   │ │
-│  └─────────────────┘  └─────────────────┘  └─────────────────┘ │
-│         │                      │                      │        │
-│         ▼                      ▼                      ▼        │
-│  ┌─────────────────┐  ┌─────────────────┐  ┌─────────────────┐ │
-│  │  nginx_logs     │  │   Live Reload   │  │  mongodb_data   │ │
-│  │   Volume        │  │    Volume       │  │    Volume       │ │
-│  └─────────────────┘  └─────────────────┘  └─────────────────┘ │
-└─────────────────────────────────────────────────────────────────┘
+### Complete System Overview
 
-External Access: localhost:80 ──► nginx ──► app:3000 ──► mongodb:27017
+```mermaid
+graph TB
+    subgraph "🌐 Client Layer"
+        Users[👥 Users]
+        Browser[🌐 Web Browser]
+        API[📡 API Clients]
+    end
+    
+    subgraph "🔄 Proxy Layer"
+        Nginx[🔄 Nginx Reverse Proxy<br/>Port 80]
+    end
+    
+    subgraph "⚡ Application Layer"
+        App[⚡ Node.js Express App<br/>Port 3000]
+        Routes[🛣️ Routes: /urls, /:id, /health]
+        Logic[🧠 Business Logic]
+    end
+    
+    subgraph "🗄️ Data Layer"
+        MongoDB[🗄️ MongoDB Database<br/>Port 27017]
+        Schema[📊 URL Schema]
+    end
+    
+    subgraph "🐳 Infrastructure"
+        Docker[🐳 Docker Containers]
+        Network[🌐 Docker Network]
+        Volumes[💾 Persistent Volumes]
+    end
+    
+    Users --> Browser
+    Users --> API
+    Browser --> Nginx
+    API --> Nginx
+    
+    Nginx --> App
+    App --> Routes
+    Routes --> Logic
+    Logic --> MongoDB
+    MongoDB --> Schema
+    
+    App -.- Docker
+    Nginx -.- Docker
+    MongoDB -.- Docker
+    
+    Docker --> Network
+    Docker --> Volumes
+    
+    style Users fill:#e3f2fd,stroke:#1976d2
+    style Nginx fill:#f3e5f5,stroke:#7b1fa2
+    style App fill:#e8f5e8,stroke:#388e3c
+    style MongoDB fill:#fff3e0,stroke:#f57c00
+    style Docker fill:#ffebee,stroke:#d32f2f
 ```
 
 ### Application Layer Architecture
-```
-┌─────────────────────────────────────────────────────────────────┐
-│                      Node.js Application                       │
-├─────────────────────────────────────────────────────────────────┤
-│                                                                 │
-│  ┌─────────────────────────────────────────────────────────┐    │
-│  │                Application Bootstrap                    │    │
-│  │  ┌─────────────────────────────────────────────────┐   │    │
-│  │  │ • Web server initialization                     │   │    │
-│  │  │ • Structured logging setup (JSON format)       │   │    │
-│  │  │ • Database connection management                │   │    │
-│  │  │ • Health monitoring endpoint                    │   │    │
-│  │  │ • Global error handling                         │   │    │
-│  │  └─────────────────────────────────────────────────┘   │    │
-│  └─────────────────────────────────────────────────────────┘    │
-│                              │                                  │
-│                              ▼                                  │
-│  ┌─────────────────────────────────────────────────────────┐    │
-│  │                 Request Router                          │    │
-│  │  ┌─────────────────────────────────────────────────┐   │    │
-│  │  │ • POST /urls ──► URL Creation Handler           │   │    │
-│  │  │ • GET /:shortUrlId ──► Redirection Handler      │   │    │
-│  │  └─────────────────────────────────────────────────┘   │    │
-│  └─────────────────────────────────────────────────────────┘    │
-│                              │                                  │
-│                              ▼                                  │
-│  ┌─────────────────────────────────────────────────────────┐    │
-│  │              Request Handlers                           │    │
-│  │  ┌─────────────────────────────────────────────────┐   │    │
-│  │  │ • HTTP request/response processing              │   │    │
-│  │  │ • Input validation (URL format checking)       │   │    │
-│  │  │ • Error response formatting                     │   │    │
-│  │  │ • Status code management (400, 404, 500)       │   │    │
-│  │  └─────────────────────────────────────────────────┘   │    │
-│  └─────────────────────────────────────────────────────────┘    │
-│                              │                                  │
-│                              ▼                                  │
-│  ┌─────────────────────────────────────────────────────────┐    │
-│  │               Business Logic Layer                      │    │
-│  │  ┌─────────────────────────────────────────────────┐   │    │
-│  │  │ • Short URL ID generation (7 chars A-Z,a-z,0-9)│   │    │
-│  │  │ • URL shortening operations                     │   │    │
-│  │  │ • URL resolution & analytics tracking          │   │    │
-│  │  │ • Visit counter management                      │   │    │
-│  │  └─────────────────────────────────────────────────┘   │    │
-│  └─────────────────────────────────────────────────────────┘    │
-│                              │                                  │
-│                              ▼                                  │
-│  ┌─────────────────────────────────────────────────────────┐    │
-│  │               Data Access Layer                         │    │
-│  │  ┌─────────────────────────────────────────────────┐   │    │
-│  │  │ • Document schema definition                    │   │    │
-│  │  │ • Data validation rules                         │   │    │
-│  │  │ • Database query operations                     │   │    │
-│  │  │ • Index management (unique shortUrlId)          │   │    │
-│  │  └─────────────────────────────────────────────────┘   │    │
-│  └─────────────────────────────────────────────────────────┘    │
-└─────────────────────────────────────────────────────────────────┘
+
+```mermaid
+graph TD
+    Client[🌐 Client] --> Router[🔀 Express Router]
+    Router --> Controller[🎮 Controllers]
+    Controller --> Service[⚙️ Business Logic]
+    Service --> Model[📊 Data Model]
+    Model --> DB[🗄️ MongoDB]
+    
+    subgraph Routes[📡 API Routes]
+        HealthRoute[GET /health]
+        CreateRoute[POST /urls]
+        RedirectRoute[GET /:id]
+    end
+    
+    subgraph Logic[🧠 Core Functions]
+        Generate[Generate Short ID]
+        Validate[Validate URL]
+        Track[Track Visits]
+    end
+    
+    Router --> Routes
+    Service --> Logic
+    
+    style Client fill:#e3f2fd,stroke:#1976d2
+    style Router fill:#f3e5f5,stroke:#7b1fa2
+    style Controller fill:#e8f5e8,stroke:#388e3c
+    style Service fill:#fff3e0,stroke:#f57c00
+    style Model fill:#ffebee,stroke:#d32f2f
+    style DB fill:#e0f2f1,stroke:#00695c
 ```
 
-### Request Flow Diagram
-```
-┌─────────────────────────────────────────────────────────────────┐
-│                    1. URL Creation Flow                        │
-└─────────────────────────────────────────────────────────────────┘
+### Data Flow Overview
 
-Client ──POST /urls──► Nginx ──proxy_pass──► Express.js App
-  │                     │                         │
-  │ {                   │ upstream backend {      │ ┌─────────────┐
-  │   "longUrl":        │   server app:3000;     │ │ Router      │
-  │   "https://..."     │ }                       ▼ │ POST /urls  │
-  │ }                   │                       ┌───┴─────────────┤
-  │                     │                       │ Request Handler │
-  │                     │                       │ • Input Validation│
-  │                     │                       └───┬─────────────┤
-  │                     │                           │ • URL Format│
-  │                     │                           │   Check     │
-  │                     │                           │ • Delegate  │
-  │                     │                           │   to Logic  │
-  │                     │                           └─────────────┘
-  │                     │                                 │
-  │                     │                                 ▼
-  │                     │                         ┌─────────────────┐
-  │                     │                         │ Business Logic  │
-  │                     │                         │ • ID Generation │
-  │                     │                         ├─────────────────┤
-  │                     │                         │ • Generate 7    │
-  │                     │                         │   character ID  │
-  │                     │                         │ • Create URL    │
-  │                     │                         │   mapping       │
-  │                     │                         │ • Persist data  │
-  │                     │                         └─────────────────┘
-  │                     │                                 │
-  │                     │                                 ▼
-  │                     │                         ┌─────────────────┐
-  │                     │                         │ Data Layer      │
-  │                     │                         │ • Document      │
-  │                     │                         │   Creation      │
-  │                     │                         │ • Schema        │
-  │                     │                         │   Validation    │
-  │                     │                         │ • Database      │
-  │                     │                         │   Persistence   │
-  │                     │                         └─────────────────┘
-  │                     │                                 │
-  ◄─────────────────────◄─────────────────────────────────┘
-  {"shortUrl": "http://localhost/aBc123D"}
-
-┌─────────────────────────────────────────────────────────────────┐
-│                   2. URL Redirection Flow                      │
-└─────────────────────────────────────────────────────────────────┘
-
-Client ──GET /aBc123D──► Nginx ──proxy_pass──► Express.js App
-  │                        │                         │
-  │                        │ upstream backend {      │ ┌─────────────┐
-  │                        │   server app:3000;     │ │ Router      │
-  │                        │ }                       ▼ │ GET /:id    │
-  │                        │                       ┌───┴─────────────┤
-  │                        │                       │ Request Handler │
-  │                        │                       │ • Extract ID    │
-  │                        │                       └───┬─────────────┤
-  │                        │                           │ • Parameter │
-  │                        │                           │   Parsing   │
-  │                        │                           │ • Delegate  │
-  │                        │                           │   to Logic  │
-  │                        │                           └─────────────┘
-  │                        │                                 │
-  │                        │                                 ▼
-  │                        │                         ┌─────────────────┐
-  │                        │                         │ Business Logic  │
-  │                        │                         │ • URL Resolution│
-  │                        │                         ├─────────────────┤
-  │                        │                         │ • Find URL by   │
-  │                        │                         │   identifier    │
-  │                        │                         │ • Update visit  │
-  │                        │                         │   analytics     │
-  │                        │                         │ • Return target │
-  │                        │                         └─────────────────┘
-  │                        │                                 │
-  │                        │                                 ▼
-  │                        │                         ┌─────────────────┐
-  │                        │                         │ Data Layer      │
-  │                        │                         │ • Query by ID   │
-  │                        │                         │ • Increment     │
-  │                        │                         │   counter       │
-  │                        │                         │ • Update record │
-  │                        │                         └─────────────────┘
-  │                        │                                 │
-  ◄────────────────────────◄─────────────────────────────────┘
-  301 Redirect
-  Location: https://original-url.com
-```
-
-### Component Specifications
-```
-┌─────────────┬────────────────┬──────────┬────────────────────┐
-│ Component   │ Technology     │ Port     │ Purpose            │
-├─────────────┼────────────────┼──────────┼────────────────────┤
-│ Nginx       │ nginx:alpine   │ 80       │ Reverse Proxy      │
-│ API Server  │ node:18-alpine │ 3000     │ REST API           │
-│ Database    │ mongo:latest   │ 27017    │ Data Persistence   │
-├─────────────┼────────────────┼──────────┼────────────────────┤
-│ Router      │ Express Router │ -        │ Request Routing    │
-│ Handler     │ Request Handler│ -        │ HTTP Processing    │
-│ Logic       │ Business Logic │ -        │ Core Operations    │
-│ Data Layer  │ Data Access    │ -        │ Database Interface │
-└─────────────┴────────────────┴──────────┴────────────────────┘
+```mermaid
+graph LR
+    Client[🌐 Client] -->|Request| Nginx[🔄 Nginx :80]
+    Nginx -->|Proxy| App[⚡ Node.js :3000]
+    App -->|Query| MongoDB[🗄️ MongoDB :27017]
+    
+    subgraph Flow[📊 Data Flow Types]
+        Create[➕ Create Short URL]
+        Redirect[🔄 Redirect to Long URL]
+        Health[🏥 Health Check]
+    end
+    
+    subgraph Network[🌐 Docker Network]
+        Bridge[url-shortener-network]
+    end
+    
+    App --> Flow
+    MongoDB --> Flow
+    
+    Nginx -.- Network
+    App -.- Network
+    MongoDB -.- Network
+    
+    style Client fill:#e3f2fd,stroke:#1976d2
+    style Nginx fill:#f3e5f5,stroke:#7b1fa2
+    style App fill:#e8f5e8,stroke:#388e3c
+    style MongoDB fill:#fff3e0,stroke:#f57c00
+    style Flow fill:#ffebee,stroke:#d32f2f
 ```
 
 ## Technology Stack
@@ -224,7 +152,6 @@ Client ──GET /aBc123D──► Nginx ──proxy_pass──► Express.js Ap
 - **Database**: MongoDB
 - **Containerization**: Docker & Docker Compose
 - **Logging**: Winston (structured JSON logs)
-
 
 ## Features
 
@@ -238,6 +165,69 @@ Client ──GET /aBc123D──► Nginx ──proxy_pass──► Express.js Ap
 - ✅ **Input Validation**: URL format validation and error handling
 
 ## Quick Start
+
+### Deployment Process
+
+```mermaid
+sequenceDiagram
+    participant Dev as 👨‍💻 Developer
+    participant Docker as 🐳 Docker
+    
+    Dev->>Docker: docker-compose up --build
+    
+    Note over Docker: 📦 Building Images
+    Docker->>Docker: Build Nginx
+    Docker->>Docker: Build Node App
+    Docker->>Docker: Pull MongoDB
+    
+    Note over Docker: 🌐 Setup Infrastructure
+    Docker->>Docker: Create Network
+    Docker->>Docker: Create Volumes
+    
+    Note over Docker: 🚀 Start Services
+    Docker->>Docker: Start MongoDB (27017)
+    Docker->>Docker: Start App (3000)
+    Docker->>Docker: Start Nginx (80)
+    
+    Note over Docker: ✅ Health Checks
+    Docker->>Docker: Verify /health endpoint
+    
+    Docker-->>Dev: ✅ All services running!
+```
+
+### Deployment State Management
+
+```mermaid
+stateDiagram-v2
+    [*] --> Starting : 🚀 docker-compose up
+    
+    Starting --> Building : 🔨 Building Images
+    Building --> Creating : 📦 Creating Containers
+    Creating --> Starting_Services : ⚡ Starting Services
+    
+    Starting_Services --> MongoDB_Ready : 🗄️ MongoDB (27017)
+    Starting_Services --> App_Ready : ⚡ Node.js (3000)
+    Starting_Services --> Nginx_Ready : 🔄 Nginx (80)
+    
+    MongoDB_Ready --> All_Ready
+    App_Ready --> All_Ready
+    Nginx_Ready --> All_Ready
+    
+    All_Ready --> Healthy : ✅ Health Checks Pass
+    
+    Healthy --> Running : 🟢 System Operational
+    
+    Running --> Healthy : 🔄 Monitoring OK
+    Running --> Degraded : ⚠️ Issues Detected
+    
+    Degraded --> Healthy : 🔧 Auto Recovery
+    Degraded --> Failed : ❌ Max Retries
+    
+    Failed --> Starting : 🔄 Restart
+    
+    Running --> Stopping : 🛑 docker-compose down
+    Stopping --> [*] : ✅ Clean Shutdown
+```
 
 1. **Clone the repository**
 ```bash
@@ -283,8 +273,98 @@ curl http://localhost/health
 - **Endpoint**: `GET /:shortUrlId`
 - **Response**: 301 redirect to original URL + visit counter increment
 
+## API Workflows
+
+### URL Creation Workflow
+
+```mermaid
+sequenceDiagram
+    participant C as 🌐 Client
+    participant N as 🔄 Nginx
+    participant A as ⚡ App
+    participant DB as 🗄️ MongoDB
+    
+    C->>N: POST /urls<br/>{"longUrl": "https://example.com"}
+    N->>A: Forward request
+    
+    Note over A: ✅ Validate URL format
+    A->>A: Check https?:// pattern
+    
+    Note over A: 🎲 Generate Short ID
+    A->>A: Create 7-char random ID
+    
+    Note over A: 💾 Save to Database
+    A->>DB: Save URL mapping
+    DB-->>A: Success ✅
+    
+    Note over A: 📤 Return Response
+    A-->>N: {"shortUrl": "http://localhost/abc123"}
+    N-->>C: Return short URL
+    
+    Note over A,DB: ❌ Error Handling
+    alt Invalid URL
+        A-->>C: 400 Bad Request
+    else Database Error
+        DB-->>A: Error
+        A-->>C: 500 Internal Error
+    end
+```
+
+### URL Redirection Workflow
+
+```mermaid
+sequenceDiagram
+    participant C as 🌐 Client
+    participant N as 🔄 Nginx
+    participant A as ⚡ App
+    participant DB as 🗄️ MongoDB
+    
+    C->>N: GET /abc123
+    N->>A: Forward request
+    
+    Note over A: 🔍 Find URL
+    A->>DB: Query by shortUrlId
+    
+    alt URL Found ✅
+        DB-->>A: Return URL data
+        
+        Note over A: 📊 Update Analytics
+        A->>DB: Increment visit count
+        
+        Note over A: ↩️ Redirect
+        A-->>N: 301 Redirect<br/>Location: https://example.com
+        N-->>C: 301 Redirect
+        
+        Note over C: 🌐 Browser follows redirect
+        C->>C: Navigate to original URL
+        
+    else URL Not Found ❌
+        DB-->>A: No results
+        A-->>N: 404 Not Found
+        N-->>C: {"error": "Not Found"}
+    end
+```
+
 ## Database Schema
 
+```mermaid
+erDiagram
+    URL {
+        string shortUrlId "🔑 Unique 7-char ID"
+        string longUrl "🌐 Original URL"
+        date createdAt "📅 Timestamp"
+        number visits "📊 Visit counter"
+    }
+    
+    URL ||--|| UNIQUE_INDEX : "indexed on"
+    
+    UNIQUE_INDEX {
+        string field "shortUrlId"
+        boolean unique "true"
+    }
+```
+
+**Schema Details:**
 ```javascript
 {
   shortUrlId: String,    // 7-character unique identifier (indexed)
@@ -292,6 +372,89 @@ curl http://localhost/health
   createdAt: Date,       // Auto-generated timestamp
   visits: Number         // Visit counter (incremented on each redirect)
 }
+```
+
+## Infrastructure
+
+### Nginx Configuration
+
+```mermaid
+graph TD
+    Client[🌐 Client Request :80] --> Nginx[🔄 Nginx Server]
+    
+    subgraph Config[⚙️ Nginx Configuration]
+        Events[📊 Events<br/>worker_connections: 1024]
+        Upstream[🎯 Upstream Backend<br/>server app:3000]
+        Location[📍 Location /<br/>proxy_pass to backend]
+    end
+    
+    Nginx --> Config
+    Config --> App[⚡ Node.js App :3000]
+    
+    style Client fill:#e3f2fd,stroke:#1976d2
+    style Nginx fill:#f3e5f5,stroke:#7b1fa2
+    style Config fill:#fff3e0,stroke:#f57c00
+    style App fill:#e8f5e8,stroke:#388e3c
+```
+
+### Health Monitoring System
+
+```mermaid
+sequenceDiagram
+    participant Docker as 🐳 Docker
+    participant App as ⚡ App Container
+    participant Health as 🏥 /health Endpoint
+    
+    Note over Docker,Health: 🔄 Health Check (Every 30s)
+    
+    loop Every 30 seconds
+        Docker->>App: Execute health check
+        App->>Health: curl -f localhost:3000/health
+        
+        alt Healthy ✅
+            Health-->>App: 200 OK<br/>{"status": "healthy", "uptime": 123}
+            App-->>Docker: Health check PASSED
+        else Unhealthy ❌
+            Health-->>App: 500 Error
+            App-->>Docker: Health check FAILED
+            Docker->>Docker: Retry (3x max)
+        end
+    end
+    
+    Note over Docker: 🔧 Health Check Config<br/>interval: 30s, timeout: 10s, retries: 3
+```
+
+## Error Handling
+
+```mermaid
+graph TD
+    Request[📥 Incoming Request] --> Validate{✅ Valid Input?}
+    
+    Validate -->|Yes| Process[⚡ Process Request]
+    Validate -->|No| BadRequest[❌ 400 Bad Request]
+    
+    Process --> Database[🗄️ Database Query]
+    Database --> Found{🔍 Found?}
+    
+    Found -->|Yes| Success[✅ 200/301 Success]
+    Found -->|No| NotFound[🔍 404 Not Found]
+    
+    Database -->|Error| ServerError[⚠️ 500 Server Error]
+    
+    subgraph Errors[🚨 Error Responses]
+        BadRequest
+        NotFound
+        ServerError
+    end
+    
+    BadRequest --> Logger[📝 Winston Logger]
+    NotFound --> Logger
+    ServerError --> Logger
+    
+    style Request fill:#e3f2fd,stroke:#1976d2
+    style Success fill:#e8f5e8,stroke:#388e3c
+    style Errors fill:#ffebee,stroke:#d32f2f
+    style Logger fill:#fff3e0,stroke:#f57c00
 ```
 
 ## Environment Variables
@@ -304,7 +467,37 @@ curl http://localhost/health
 
 ## Testing
 
-This section provides comprehensive testing procedures and examples for the URL shortener application.
+### Testing Workflow
+
+```mermaid
+graph TD
+    Start[🚀 Start Testing] --> Setup[⚙️ Setup Environment]
+    Setup --> Health[🏥 Health Check]
+    
+    Health --> Create[➕ Create URLs]
+    Create --> Redirect[🔄 Test Redirects]
+    Redirect --> Analytics[📊 Visit Tracking]
+    
+    Analytics --> Errors[⚠️ Error Handling]
+    Errors --> Performance[⚡ Performance Tests]
+    Performance --> Complete[✅ Testing Complete]
+    
+    subgraph Tests[🧪 Test Categories]
+        Unit[Unit Tests]
+        Integration[Integration Tests]
+        E2E[End-to-End Tests]
+    end
+    
+    Create --> Tests
+    Redirect --> Tests
+    Analytics --> Tests
+    
+    style Start fill:#e3f2fd,stroke:#1976d2
+    style Health fill:#e8f5e8,stroke:#388e3c
+    style Create fill:#fff3e0,stroke:#f57c00
+    style Redirect fill:#f3e5f5,stroke:#7b1fa2
+    style Complete fill:#e0f2f1,stroke:#00695c
+```
 
 ### Prerequisites for Testing
 
@@ -334,19 +527,6 @@ curl -X GET http://localhost/health
 }
 ```
 
-**Test Screenshot Placeholder:**
-```
-[ Health Check Test Output Screenshot ]
-┌─────────────────────────────────────────────────────────────┐
-│ $ curl -X GET http://localhost/health                       │
-│ {                                                           │
-│   "status": "healthy",                                      │
-│   "timestamp": "2025-08-28T10:30:00.123Z",                 │
-│   "uptime": 45.67                                           │
-│ }                                                           │
-└─────────────────────────────────────────────────────────────┘
-```
-
 ### 2. URL Shortening Testing
 
 #### Create a Short URL
@@ -361,19 +541,6 @@ curl -X POST http://localhost/urls \
 {
   "shortUrl": "http://localhost/aBc123D"
 }
-```
-
-**Test Screenshot Placeholder:**
-```
-[ URL Creation Test Output Screenshot ]
-┌─────────────────────────────────────────────────────────────┐
-│ $ curl -X POST http://localhost/urls \                     │
-│   -H "Content-Type: application/json" \                    │
-│   -d '{"longUrl": "https://www.google.com"}'               │
-│ {                                                           │
-│   "shortUrl": "http://localhost/aBc123D"                   │
-│ }                                                           │
-└─────────────────────────────────────────────────────────────┘
 ```
 
 #### Test Multiple URL Creation
@@ -399,21 +566,6 @@ curl -I http://localhost/aBc123D
 ```
 HTTP/1.1 301 Moved Permanently
 Location: https://www.google.com
-```
-
-**Test Screenshot Placeholder:**
-```
-[ URL Redirect Test Output Screenshot ]
-┌─────────────────────────────────────────────────────────────┐
-│ $ curl -I http://localhost/aBc123D                          │
-│ HTTP/1.1 301 Moved Permanently                             │
-│ Server: nginx/1.25.3                                       │
-│ Date: Wed, 28 Aug 2025 10:30:15 GMT                        │
-│ Content-Type: text/html; charset=utf-8                     │
-│ Content-Length: 58                                          │
-│ Connection: keep-alive                                      │
-│ Location: https://www.google.com                           │
-└─────────────────────────────────────────────────────────────┘
 ```
 
 #### Test Visit Counter
@@ -459,25 +611,6 @@ curl -I http://localhost/nonexistent
 }
 ```
 
-**Error Handling Test Screenshot Placeholder:**
-```
-[ Error Handling Test Output Screenshot ]
-┌─────────────────────────────────────────────────────────────┐
-│ $ curl -X POST http://localhost/urls \                     │
-│   -H "Content-Type: application/json" \                    │
-│   -d '{"longUrl": "invalid-url"}'                          │
-│ {                                                           │
-│   "error": "Invalid URL"                                   │
-│ }                                                           │
-│                                                             │
-│ $ curl -I http://localhost/nonexistent                     │
-│ HTTP/1.1 404 Not Found                                     │
-│ {                                                           │
-│   "error": "Not Found"                                     │
-│ }                                                           │
-└─────────────────────────────────────────────────────────────┘
-```
-
 ### 5. Container and Service Testing
 
 #### Test Container Status
@@ -489,18 +622,6 @@ docker-compose ps
 docker-compose logs nginx
 docker-compose logs app
 docker-compose logs mongodb
-```
-
-**Container Status Screenshot Placeholder:**
-```
-[ Container Status Test Output Screenshot ]
-┌─────────────────────────────────────────────────────────────┐
-│ $ docker-compose ps                                         │
-│ NAME               IMAGE                    STATUS           │
-│ url-shortener-nginx-1   url-shortener-nginx   Up 2 minutes │
-│ url-shortener-app-1     url-shortener-app     Up 2 minutes │
-│ url-shortener-mongodb-1 mongo:latest          Up 2 minutes │
-└─────────────────────────────────────────────────────────────┘
 ```
 
 #### Test Network Connectivity
@@ -523,25 +644,6 @@ db.urls.countDocuments()
 db.urls.find({}, {shortUrlId: 1, longUrl: 1, visits: 1, _id: 0})
 ```
 
-**Database Test Screenshot Placeholder:**
-```
-[ Database Test Output Screenshot ]
-┌─────────────────────────────────────────────────────────────┐
-│ $ docker exec -it url-shortener-mongodb-1 mongosh url_shortener │
-│ url_shortener> db.urls.find()                              │
-│ [                                                           │
-│   {                                                         │
-│     _id: ObjectId('...'),                                  │
-│     shortUrlId: 'aBc123D',                                 │
-│     longUrl: 'https://www.google.com',                     │
-│     createdAt: ISODate('2025-08-28T10:30:00.000Z'),       │
-│     visits: 3,                                             │
-│     __v: 0                                                 │
-│   }                                                         │
-│ ]                                                           │
-└─────────────────────────────────────────────────────────────┘
-```
-
 ### 7. Performance Testing
 
 #### Basic Load Testing with curl
@@ -562,24 +664,6 @@ for i in {1..50}; do
   curl -s -o /dev/null -w "%{http_code}\n" http://localhost/aBc123D &
 done
 wait
-```
-
-**Performance Test Screenshot Placeholder:**
-```
-[ Performance Test Output Screenshot ]
-┌─────────────────────────────────────────────────────────────┐
-│ $ for i in {1..10}; do                                      │
-│   curl -X POST http://localhost/urls \                     │
-│     -H "Content-Type: application/json" \                  │
-│     -d "{\"longUrl\": \"https://example$i.com\"}" &        │
-│ done                                                        │
-│ wait                                                        │
-│                                                             │
-│ {"shortUrl": "http://localhost/xYz789A"}                   │
-│ {"shortUrl": "http://localhost/pQr456B"}                   │
-│ {"shortUrl": "http://localhost/mNo123C"}                   │
-│ ... (10 URLs created successfully)                         │
-└─────────────────────────────────────────────────────────────┘
 ```
 
 ### 8. End-to-End Testing Script
@@ -619,45 +703,7 @@ curl -s -X POST http://localhost/urls \
 echo -e "\nTest Complete!"
 ```
 
-**End-to-End Test Screenshot Placeholder:**
-```
-[ End-to-End Test Output Screenshot ]
-┌─────────────────────────────────────────────────────────────┐
-│ === URL Shortener End-to-End Test ===                      │
-│                                                             │
-│ 1. Testing Health Endpoint...                              │
-│ {                                                           │
-│   "status": "healthy",                                      │
-│   "timestamp": "2025-08-28T10:30:00.123Z",                 │
-│   "uptime": 67.89                                           │
-│ }                                                           │
-│                                                             │
-│ 2. Creating Short URL...                                   │
-│ {"shortUrl": "http://localhost/gHi789J"}                   │
-│                                                             │
-│ 3. Testing Redirect...                                     │
-│ HTTP/1.1 301 Moved Permanently                             │
-│ Location: https://www.github.com                           │
-│                                                             │
-│ Test Complete!                                              │
-└─────────────────────────────────────────────────────────────┘
-```
-
-### 9. Browser Testing
-
-#### Manual Browser Tests
-1. **Health Check**: Visit `http://localhost/health` in browser
-2. **API Testing**: Use browser developer tools or Postman
-3. **Redirect Testing**: Create a short URL and test redirect in browser
-
-#### Browser Test Screenshot Placeholders:
-```
-[ Browser Health Check Screenshot ]
-[ Browser API Test Screenshot ]
-[ Browser Redirect Test Screenshot ]
-```
-
-### 10. Testing Checklist
+### 9. Testing Checklist
 
 Use this checklist to verify all functionality:
 
@@ -671,21 +717,6 @@ Use this checklist to verify all functionality:
 - [ ] Database stores URL records correctly
 - [ ] Nginx proxy forwards requests correctly
 - [ ] Application logs are generated properly
-
-### Test Results Summary
-
-After completing all tests, document your results:
-
-| Test Category | Status | Notes |
-|---------------|--------|-------|
-| Health Check | ✅ Pass | Response time: ~50ms |
-| URL Creation | ✅ Pass | All formats accepted |
-| URL Redirection | ✅ Pass | 301 redirects working |
-| Visit Tracking | ✅ Pass | Counters incrementing |
-| Error Handling | ✅ Pass | Proper error messages |
-| Container Health | ✅ Pass | All services running |
-| Database | ✅ Pass | Data persisted correctly |
-| Performance | ✅ Pass | Handles concurrent requests |
 
 ## Troubleshooting
 
@@ -761,5 +792,3 @@ url-shortener-lab02-feature-nginx-layer/
 ## License
 
 ISC License
-
-
