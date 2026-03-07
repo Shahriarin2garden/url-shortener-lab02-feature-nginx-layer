@@ -14,6 +14,8 @@ This project demonstrates a modern, containerized web application following micr
 
 The system is designed with scalability, observability, and reliability in mind. It includes health checks, structured logging, input validation, and persistent data volumes. The following sections detail the architecture, data flow, deployment steps, and testing strategies.
 
+All diagrams in this document use a greyscale palette to maintain a professional, distraction‑free appearance while clearly conveying system interactions.
+
 ---
 
 ## Architecture
@@ -34,11 +36,11 @@ graph TD
         MongoDB
     end
 
-    style Client fill:#e3f2fd,stroke:#1976d2,stroke-width:2px
-    style Nginx fill:#f3e5f5,stroke:#7b1fa2,stroke-width:2px
-    style App fill:#e8f5e8,stroke:#388e3c,stroke-width:2px
-    style MongoDB fill:#fff3e0,stroke:#f57c00,stroke-width:2px
-    style Docker fill:#ffebee,stroke:#d32f2f,stroke-width:2px
+    style Client fill:#222,stroke:#000,stroke-width:2px,color:#fff
+    style Nginx fill:#333,stroke:#000,stroke-width:2px,color:#fff
+    style App fill:#444,stroke:#000,stroke-width:2px,color:#fff
+    style MongoDB fill:#555,stroke:#000,stroke-width:2px,color:#fff
+    style Docker fill:#666,stroke:#111,stroke-width:2px,color:#fff
 ```
 
 ### Complete System Overview
@@ -92,11 +94,11 @@ graph TB
     Docker --> Network
     Docker --> Volumes
 
-    style Users fill:#e3f2fd,stroke:#1976d2
-    style Nginx fill:#f3e5f5,stroke:#7b1fa2
-    style App fill:#e8f5e8,stroke:#388e3c
-    style MongoDB fill:#fff3e0,stroke:#f57c00
-    style Docker fill:#ffebee,stroke:#d32f2f
+    style Users fill:#222,stroke:#000,stroke-width:2px,color:#fff
+    style Nginx fill:#333,stroke:#000,stroke-width:2px,color:#fff
+    style App fill:#444,stroke:#000,stroke-width:2px,color:#fff
+    style MongoDB fill:#555,stroke:#000,stroke-width:2px,color:#fff
+    style Docker fill:#666,stroke:#111,stroke-width:2px,color:#fff
 ```
 
 ### Application Layer Architecture
@@ -126,12 +128,12 @@ graph TD
     Router --> Routes
     Service --> Logic
 
-    style Client fill:#e3f2fd,stroke:#1976d2
-    style Router fill:#f3e5f5,stroke:#7b1fa2
-    style Controller fill:#e8f5e8,stroke:#388e3c
-    style Service fill:#fff3e0,stroke:#f57c00
-    style Model fill:#ffebee,stroke:#d32f2f
-    style DB fill:#e0f2f1,stroke:#00695c
+    style Client fill:#222,stroke:#000,stroke-width:2px,color:#fff
+    style Router fill:#333,stroke:#000,stroke-width:2px,color:#fff
+    style Controller fill:#444,stroke:#000,stroke-width:2px,color:#fff
+    style Service fill:#555,stroke:#000,stroke-width:2px,color:#fff
+    style Model fill:#666,stroke:#000,stroke-width:2px,color:#fff
+    style DB fill:#777,stroke:#000,stroke-width:2px,color:#fff
 ```
 
 ### Data Flow Overview
@@ -161,11 +163,11 @@ graph LR
     App -.- Network
     DB -.- Network
 
-    style Client fill:#e3f2fd,stroke:#1976d2
-    style Nginx fill:#f3e5f5,stroke:#7b1fa2
-    style App fill:#e8f5e8,stroke:#388e3c
-    style DB fill:#fff3e0,stroke:#f57c00
-    style Flow fill:#ffebee,stroke:#d32f2f
+    style Client fill:#222,stroke:#000,stroke-width:2px,color:#fff
+    style Nginx fill:#333,stroke:#000,stroke-width:2px,color:#fff
+    style App fill:#444,stroke:#000,stroke-width:2px,color:#fff
+    style DB fill:#555,stroke:#000,stroke-width:2px,color:#fff
+    style Flow fill:#666,stroke:#111,stroke-width:2px,color:#fff
 ```
 
 ---
@@ -433,10 +435,10 @@ graph TD
     Nginx --> Config
     Config --> App[Node.js App :3000]
 
-    style Client fill:#e3f2fd,stroke:#1976d2
-    style Nginx fill:#f3e5f5,stroke:#7b1fa2
-    style Config fill:#fff3e0,stroke:#f57c00
-    style App fill:#e8f5e8,stroke:#388e3c
+    style Client fill:#222,stroke:#000,stroke-width:2px,color:#fff
+    style Nginx fill:#333,stroke:#000,stroke-width:2px,color:#fff
+    style Config fill:#444,stroke:#000,stroke-width:2px,color:#fff
+    style App fill:#555,stroke:#000,stroke-width:2px,color:#fff
 ```
 
 ### Health Monitoring System
@@ -499,10 +501,10 @@ graph TD
     NotFound --> Logger
     ServerError --> Logger
 
-    style Request fill:#e3f2fd,stroke:#1976d2
-    style Success fill:#e8f5e8,stroke:#388e3c
-    style Errors fill:#ffebee,stroke:#d32f2f
-    style Logger fill:#fff3e0,stroke:#f57c00
+    style Request fill:#222,stroke:#000,stroke-width:2px,color:#fff
+    style Success fill:#333,stroke:#000,stroke-width:2px,color:#fff
+    style Errors fill:#444,stroke:#000,stroke-width:2px,color:#fff
+    style Logger fill:#555,stroke:#000,stroke-width:2px,color:#fff
 ```
 
 ---
@@ -544,11 +546,11 @@ graph TD
     Redirect --> Tests
     Analytics --> Tests
 
-    style Start fill:#e3f2fd,stroke:#1976d2
-    style Health fill:#e8f5e8,stroke:#388e3c
-    style Create fill:#fff3e0,stroke:#f57c00
-    style Redirect fill:#f3e5f5,stroke:#7b1fa2
-    style Complete fill:#e0f2f1,stroke:#00695c
+    style Start fill:#222,stroke:#000,stroke-width:2px,color:#fff
+    style Health fill:#333,stroke:#000,stroke-width:2px,color:#fff
+    style Create fill:#444,stroke:#000,stroke-width:2px,color:#fff
+    style Redirect fill:#555,stroke:#000,stroke-width:2px,color:#fff
+    style Complete fill:#666,stroke:#000,stroke-width:2px,color:#fff
 ```
 
 ### Prerequisites for Testing
